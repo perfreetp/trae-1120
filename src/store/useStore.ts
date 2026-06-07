@@ -8,6 +8,7 @@ import type {
   InspectionRecord,
   Hazard,
   WorkOrder,
+  WorkOrderProgress,
   Statistics,
   GasFacility,
 } from '@/types';
@@ -40,9 +41,12 @@ interface AppState {
   selectedBuilding: Building | null;
   fetchData: () => void;
   updateTask: (id: string, data: Partial<Task>) => void;
+  batchUpdateTasks: (ids: string[], data: Partial<Task>) => void;
+  addInspectionRecord: (record: InspectionRecord) => void;
   addHazard: (hazard: Hazard) => void;
   updateHazard: (id: string, data: Partial<Hazard>) => void;
   updateWorkOrder: (id: string, data: Partial<WorkOrder>) => void;
+  addWorkOrderProgress: (workOrderId: string, progress: Omit<WorkOrderProgress, 'id' | 'workOrderId'>) => void;
   toggleSidebar: () => void;
   setSelectedBuilding: (building: Building | null) => void;
   setCurrentUser: (user: User) => void;
@@ -77,6 +81,18 @@ export const useStore = create<AppState>((set) => ({
       ),
     })),
 
+  batchUpdateTasks: (ids, data) =>
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        ids.includes(task.id) ? { ...task, ...data } : task
+      ),
+    })),
+
+  addInspectionRecord: (record) =>
+    set((state) => ({
+      inspections: [...state.inspections, record],
+    })),
+
   addHazard: (hazard) =>
     set((state) => ({
       hazards: [...state.hazards, hazard],
@@ -93,6 +109,25 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({
       workOrders: state.workOrders.map((wo) =>
         wo.id === id ? { ...wo, ...data } : wo
+      ),
+    })),
+
+  addWorkOrderProgress: (workOrderId, progress) =>
+    set((state) => ({
+      workOrders: state.workOrders.map((wo) =>
+        wo.id === workOrderId
+          ? {
+              ...wo,
+              progress: [
+                ...wo.progress,
+                {
+                  ...progress,
+                  id: `p_${Date.now()}`,
+                  workOrderId,
+                } as WorkOrderProgress,
+              ],
+            }
+          : wo
       ),
     })),
 

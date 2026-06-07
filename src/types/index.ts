@@ -54,6 +54,11 @@ export interface Task {
   scheduledDate: string;
   completedDate?: string;
   priority: 'low' | 'medium' | 'high';
+  checkInStatus?: 'pending' | 'checked_in';
+  checkInStatusLabel?: string;
+  checkInTime?: string;
+  photoCount?: number;
+  photos?: string[];
 }
 
 export interface InspectionRecord {

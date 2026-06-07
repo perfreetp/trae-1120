@@ -13,6 +13,7 @@ import {
   MoreHorizontal,
   Plus,
   Filter,
+  CheckCircle,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import type { WorkOrder } from '@/types';
@@ -26,10 +27,13 @@ const typeTabs = [
 ];
 
 export default function WorkOrders() {
-  const { workOrders, updateWorkOrder } = useStore();
+  const { workOrders, updateWorkOrder, addWorkOrderProgress, currentUser } = useStore();
   const [activeTypeTab, setActiveTypeTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOrder, setSelectedOrder] = useState<WorkOrder | null>(null);
+  const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
+  const [showSuccess, setShowSuccess] = useState('');
+
+  const selectedOrder = workOrders.find((wo) => wo.id === selectedOrderId) || null;
 
   const filteredOrders = workOrders.filter((order) => {
     const matchesType = activeTypeTab === 'all' || order.type === activeTypeTab;
@@ -79,8 +83,83 @@ export default function WorkOrders() {
     return colors[status];
   };
 
+  const showSuccessMessage = (msg: string) => {
+    setShowSuccess(msg);
+    setTimeout(function() { setShowSuccess(''); }, 2000);
+  };
+
+  const formatDateTime = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return y + '-' + m + '-' + d + ' ' + h + ':' + min + ':' + s;
+  };
+
+  const formatDate = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  };
+
+  const handleAcceptOrder = () => {
+    if (!selectedOrder || !currentUser) return;
+    
+    const now = new Date();
+    const timeStr = formatDateTime(now);
+
+    updateWorkOrder(selectedOrder.id, {
+      status: 'processing',
+      statusLabel: '处理中',
+      assigneeId: currentUser.id,
+      assigneeName: currentUser.name,
+    });
+
+    addWorkOrderProgress(selectedOrder.id, {
+      status: '接单处理',
+      description: currentUser.name + ' 已接单，开始处理工单',
+      operatorName: currentUser.name,
+      timestamp: timeStr,
+    });
+
+    showSuccessMessage('接单成功！');
+  };
+
+  const handleCompleteOrder = () => {
+    if (!selectedOrder || !currentUser) return;
+    
+    const now = new Date();
+    const timeStr = formatDateTime(now);
+    const dateStr = formatDate(now);
+
+    updateWorkOrder(selectedOrder.id, {
+      status: 'completed',
+      statusLabel: '已完成',
+      completedDate: dateStr,
+    });
+
+    addWorkOrderProgress(selectedOrder.id, {
+      status: '完成工单',
+      description: '工单已处理完成，等待回访',
+      operatorName: currentUser.name,
+      timestamp: timeStr,
+    });
+
+    showSuccessMessage('工单已完成！');
+  };
+
   return (
     <div className="space-y-6">
+      {showSuccess && (
+        <div className="fixed top-20 right-6 z-50 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-pulse">
+          <CheckCircle className="w-5 h-5" />
+          {showSuccess}
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">工单管理</h1>
@@ -104,7 +183,7 @@ export default function WorkOrders() {
             <div>
               <p className="text-sm text-gray-500">待处理</p>
               <p className="text-2xl font-bold text-gray-900 mt-1">
-                {workOrders.filter((o) => o.status === 'pending').length}
+                {workOrders.filter(function(o) { return o.status === 'pending'; }).length}
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center">
@@ -117,7 +196,7 @@ export default function WorkOrders() {
             <div>
               <p className="text-sm text-gray-500">处理中</p>
               <p className="text-2xl font-bold text-blue-600 mt-1">
-                {workOrders.filter((o) => o.status === 'processing').length}
+                {workOrders.filter(function(o) { return o.status === 'processing'; }).length}
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-blue-100 flex items-center justify-center">
@@ -130,7 +209,7 @@ export default function WorkOrders() {
             <div>
               <p className="text-sm text-gray-500">紧急工单</p>
               <p className="text-2xl font-bold text-red-600 mt-1">
-                {workOrders.filter((o) => o.priority === 'emergency').length}
+                {workOrders.filter(function(o) { return o.priority === 'emergency'; }).length}
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-red-100 flex items-center justify-center">
@@ -143,7 +222,7 @@ export default function WorkOrders() {
             <div>
               <p className="text-sm text-gray-500">已完成</p>
               <p className="text-2xl font-bold text-green-600 mt-1">
-                {workOrders.filter((o) => o.status === 'completed' || o.status === 'closed').length}
+                {workOrders.filter(function(o) { return o.status === 'completed' || o.status === 'closed'; }).length}
               </p>
             </div>
             <div className="w-12 h-12 rounded-xl bg-green-100 flex items-center justify-center">
@@ -158,19 +237,19 @@ export default function WorkOrders() {
           <div className="p-4 border-b border-gray-100">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1">
-                {typeTabs.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveTypeTab(tab.key)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      activeTypeTab === tab.key
-                        ? 'bg-blue-50 text-blue-600'
-                        : 'text-gray-600 hover:bg-gray-50'
-                    }`}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
+                {typeTabs.map(function(tab) {
+                  return (
+                    <button
+                      key={tab.key}
+                      onClick={function() { setActiveTypeTab(tab.key); }}
+                      className={activeTypeTab === tab.key
+                        ? 'px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-blue-50 text-blue-600'
+                        : 'px-4 py-2 rounded-lg text-sm font-medium transition-colors text-gray-600 hover:bg-gray-50'}
+                    >
+                      {tab.label}
+                    </button>
+                  );
+                })}
               </div>
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
@@ -178,7 +257,7 @@ export default function WorkOrders() {
                   type="text"
                   placeholder="搜索工单..."
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onChange={function(e) { setSearchQuery(e.target.value); }}
                   className="w-64 pl-10 pr-4 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
@@ -186,29 +265,29 @@ export default function WorkOrders() {
           </div>
 
           <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
-            {filteredOrders.map((order) => {
+            {filteredOrders.map(function(order) {
               const TypeIcon = getTypeIcon(order.type);
+              const isSelected = selectedOrder?.id === order.id;
+              const rowClass = isSelected
+                ? 'p-4 cursor-pointer transition-colors bg-blue-50'
+                : 'p-4 cursor-pointer transition-colors hover:bg-gray-50';
               return (
                 <div
                   key={order.id}
-                  onClick={() => setSelectedOrder(order)}
-                  className={`p-4 cursor-pointer transition-colors ${
-                    selectedOrder?.id === order.id
-                      ? 'bg-blue-50'
-                      : 'hover:bg-gray-50'
-                  }`}
+                  onClick={function() { setSelectedOrderId(order.id); }}
+                  className={rowClass}
                 >
                   <div className="flex items-start gap-4">
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${getTypeColor(order.type)}`}>
+                    <div className={'w-10 h-10 rounded-xl flex items-center justify-center ' + getTypeColor(order.type)}>
                       <TypeIcon className="w-5 h-5" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-mono text-gray-500">{order.orderNo}</span>
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${getPriorityColor(order.priority)}`}>
+                        <span className={'px-2 py-0.5 rounded-lg text-xs font-medium ' + getPriorityColor(order.priority)}>
                           {order.priorityLabel}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-lg text-xs font-medium ${getStatusColor(order.status)}`}>
+                        <span className={'px-2 py-0.5 rounded-lg text-xs font-medium ' + getStatusColor(order.status)}>
                           {order.statusLabel}
                         </span>
                       </div>
@@ -243,7 +322,7 @@ export default function WorkOrders() {
               <div>
                 <div className="flex items-center justify-between">
                   <h3 className="text-lg font-semibold text-gray-900">工单详情</h3>
-                  <span className={`px-3 py-1 rounded-lg text-sm font-medium ${getStatusColor(selectedOrder.status)}`}>
+                  <span className={'px-3 py-1 rounded-lg text-sm font-medium ' + getStatusColor(selectedOrder.status)}>
                     {selectedOrder.statusLabel}
                   </span>
                 </div>
@@ -284,27 +363,26 @@ export default function WorkOrders() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 mb-4">处理进度</h4>
                   <div className="space-y-4">
-                    {selectedOrder.progress.map((progress, index) => (
-                      <div key={progress.id} className="flex gap-3">
-                        <div className="flex flex-col items-center">
-                          <div className={`w-3 h-3 rounded-full ${
-                            index === selectedOrder.progress.length - 1
-                              ? 'bg-blue-500'
-                              : 'bg-green-500'
-                          }`} />
-                          {index < selectedOrder.progress.length - 1 && (
-                            <div className="w-0.5 h-full bg-gray-200 mt-1" />
-                          )}
+                    {selectedOrder.progress.map(function(progress, index) {
+                      const isLast = index === selectedOrder.progress.length - 1;
+                      return (
+                        <div key={progress.id} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={isLast ? 'w-3 h-3 rounded-full bg-blue-500' : 'w-3 h-3 rounded-full bg-green-500'} />
+                            {!isLast && (
+                              <div className="w-0.5 h-full bg-gray-200 mt-1" />
+                            )}
+                          </div>
+                          <div className="flex-1 pb-4">
+                            <p className="text-sm font-medium text-gray-900">{progress.status}</p>
+                            <p className="text-sm text-gray-500 mt-0.5">{progress.description}</p>
+                            <p className="text-xs text-gray-400 mt-1">
+                              {progress.operatorName} · {progress.timestamp}
+                            </p>
+                          </div>
                         </div>
-                        <div className="flex-1 pb-4">
-                          <p className="text-sm font-medium text-gray-900">{progress.status}</p>
-                          <p className="text-sm text-gray-500 mt-0.5">{progress.description}</p>
-                          <p className="text-xs text-gray-400 mt-1">
-                            {progress.operatorName} · {progress.timestamp}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               )}
@@ -316,16 +394,15 @@ export default function WorkOrders() {
                     <span className="text-sm font-medium text-green-700">回访记录</span>
                   </div>
                   <div className="flex items-center gap-1 mb-2">
-                    {[...Array(5)].map((_, i) => (
-                      <Star
-                        key={i}
-                        className={`w-4 h-4 ${
-                          i < selectedOrder.followUp!.satisfaction
-                            ? 'fill-yellow-400 text-yellow-400'
-                            : 'text-gray-300'
-                        }`}
-                      />
-                    ))}
+                    {[...Array(5)].map(function(_, i) {
+                      const filled = i < selectedOrder.followUp!.satisfaction;
+                      return (
+                        <Star
+                          key={i}
+                          className={filled ? 'w-4 h-4 fill-yellow-400 text-yellow-400' : 'w-4 h-4 text-gray-300'}
+                        />
+                      );
+                    })}
                   </div>
                   <p className="text-sm text-gray-600">{selectedOrder.followUp.feedback}</p>
                   <p className="text-xs text-gray-400 mt-2">
@@ -337,14 +414,7 @@ export default function WorkOrders() {
               <div className="space-y-2 pt-4 border-t border-gray-100">
                 {selectedOrder.status === 'pending' && (
                   <button
-                    onClick={() =>
-                      updateWorkOrder(selectedOrder.id, {
-                        status: 'processing',
-                        statusLabel: '处理中',
-                        assigneeId: '3',
-                        assigneeName: '王安检员',
-                      })
-                    }
+                    onClick={handleAcceptOrder}
                     className="w-full px-4 py-2.5 bg-blue-600 text-white rounded-xl font-medium hover:bg-blue-700 transition-colors"
                   >
                     接单处理
@@ -352,13 +422,7 @@ export default function WorkOrders() {
                 )}
                 {selectedOrder.status === 'processing' && (
                   <button
-                    onClick={() =>
-                      updateWorkOrder(selectedOrder.id, {
-                        status: 'completed',
-                        statusLabel: '已完成',
-                        completedDate: '2026-06-07',
-                      })
-                    }
+                    onClick={handleCompleteOrder}
                     className="w-full px-4 py-2.5 bg-green-600 text-white rounded-xl font-medium hover:bg-green-700 transition-colors"
                   >
                     完成工单

@@ -25,6 +25,7 @@ import {
   MapPin,
   TrendingUp,
   FileSpreadsheet,
+  CheckCircle,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
@@ -37,9 +38,10 @@ const dimensionTabs = [
 const COLORS = ['#3b82f6', '#10b981', '#f97316', '#8b5cf6', '#ef4444', '#06b6d4'];
 
 export default function Reports() {
-  const { communities, statistics, hazards } = useStore();
+  const { communities, statistics, hazards, tasks } = useStore();
   const [activeDimension, setActiveDimension] = useState('street');
   const [dateRange, setDateRange] = useState('month');
+  const [showExportSuccess, setShowExportSuccess] = useState(false);
 
   const streetData = [
     { name: '建设街道', inspectionRate: 84.5, completed: 1450, total: 1716, hazards: 18 },
@@ -79,8 +81,107 @@ export default function Reports() {
 
   const currentData = activeDimension === 'street' ? streetData : activeDimension === 'grid' ? gridData : inspectorData;
 
+  const getDateRangeLabel = () => {
+    const labels: Record<string, string> = {
+      week: '本周',
+      month: '本月',
+      quarter: '本季度',
+      year: '本年',
+    };
+    return labels[dateRange] || '本月';
+  };
+
+  const getDimensionLabel = () => {
+    const labels: Record<string, string> = {
+      street: '街道',
+      grid: '网格',
+      inspector: '安检员',
+    };
+    return labels[activeDimension] || '街道';
+  };
+
+  const exportToCSV = () => {
+    const now = new Date();
+    const dateStr = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}`;
+    const fileName = `燃气巡检报表_${getDimensionLabel()}维度_${dateStr}.csv`;
+
+    let csvContent = '\uFEFF';
+    
+    csvContent += '城市燃气安全巡检统计报表\n';
+    csvContent += `统计维度：${getDimensionLabel()}\n`;
+    csvContent += `时间范围：${getDateRangeLabel()}\n`;
+    csvContent += `导出时间：${now.toLocaleString('zh-CN')}\n\n`;
+
+    csvContent += '总体统计\n';
+    csvContent += `总安检户数,${statistics.inspectedHouseholds}\n`;
+    csvContent += `安检覆盖率,${statistics.inspectionRate}%\n`;
+    const totalHazards = statistics.hazardLevelDistribution.general +
+                        statistics.hazardLevelDistribution.major +
+                        statistics.hazardLevelDistribution.critical;
+    csvContent += `发现隐患总数,${totalHazards}\n`;
+    csvContent += `重大隐患数,${statistics.hazardLevelDistribution.critical}\n`;
+    csvContent += `较大隐患数,${statistics.hazardLevelDistribution.major}\n`;
+    csvContent += `一般隐患数,${statistics.hazardLevelDistribution.general}\n`;
+    csvContent += `整改完成率,85.7%\n\n`;
+
+    csvContent += `${getDimensionLabel()}维度统计\n`;
+    if (activeDimension === 'inspector') {
+      csvContent += '安检员,已完成任务数,合格率(%),发现隐患数\n';
+      currentData.forEach((item) => {
+        csvContent += `${item.name},${item.completed},${item.passRate},${item.hazards}\n`;
+      });
+    } else {
+      csvContent += `${getDimensionLabel()}名称,安检覆盖率(%),已安检户数,总户数,发现隐患数\n`;
+      currentData.forEach((item) => {
+        csvContent += `${item.name},${item.inspectionRate},${item.completed},${item.total},${item.hazards}\n`;
+      });
+    }
+    csvContent += '\n';
+
+    csvContent += '小区安检明细\n';
+    csvContent += '小区名称,所属街道,网格,楼栋数,总户数,安检覆盖率(%),状态\n';
+    communities.forEach((community) => {
+      const status = community.inspectionRate >= 80 ? '良好' : community.inspectionRate >= 60 ? '一般' : '需改进';
+      csvContent += `${community.name},${community.street},${community.grid},${community.buildingCount},${community.householdCount},${community.inspectionRate},${status}\n`;
+    });
+    csvContent += '\n';
+
+    csvContent += '月度安检趋势\n';
+    csvContent += '月份,安检户数,新增隐患,完成整改\n';
+    monthlyData.forEach((item) => {
+      csvContent += `${item.month},${item.inspected},${item.newHazards},${item.rectified}\n`;
+    });
+    csvContent += '\n';
+
+    csvContent += '隐患类型分布\n';
+    csvContent += '隐患类型,数量\n';
+    hazardTypeData.forEach((item) => {
+      csvContent += `${item.name},${item.value}\n`;
+    });
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    setShowExportSuccess(true);
+    setTimeout(() => setShowExportSuccess(false), 3000);
+  };
+
   return (
     <div className="space-y-6">
+      {showExportSuccess && (
+        <div className="fixed top-20 right-6 z-50 bg-green-500 text-white px-6 py-3 rounded-xl shadow-lg flex items-center gap-2 animate-pulse">
+          <CheckCircle className="w-5 h-5" />
+          报表导出成功！
+        </div>
+      )}
+
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">统计报表</h1>
@@ -104,7 +205,10 @@ export default function Reports() {
             <Filter className="w-4 h-4" />
             筛选
           </button>
-          <button className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2">
+          <button
+            onClick={exportToCSV}
+            className="px-4 py-2 bg-green-600 text-white rounded-lg text-sm font-medium hover:bg-green-700 transition-colors flex items-center gap-2"
+          >
             <Download className="w-4 h-4" />
             导出报表
           </button>
