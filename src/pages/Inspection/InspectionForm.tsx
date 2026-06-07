@@ -386,6 +386,7 @@ export default function InspectionForm() {
             <div className="flex gap-3">
               <button
                 onClick={() => {
+                  setSelectedAbnormals([]);
                   setShowHazardModal(false);
                   submitInspection();
                 }}

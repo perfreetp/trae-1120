@@ -41,6 +41,7 @@ export default function WorkOrders() {
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const [handlingNotes, setHandlingNotes] = useState('');
   const [orderPhotos, setOrderPhotos] = useState<string[]>([]);
+  const [arrivalTime, setArrivalTime] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const selectedOrder = workOrders.find((wo) => wo.id === selectedOrderId) || null;
@@ -167,6 +168,7 @@ export default function WorkOrders() {
     if (!selectedOrder) return;
     setHandlingNotes(selectedOrder.handlingNotes || '');
     setOrderPhotos(selectedOrder.photos || []);
+    setArrivalTime(selectedOrder.arrivalTime || '');
     setShowCompleteModal(true);
   };
 
@@ -176,16 +178,18 @@ export default function WorkOrders() {
     const now = new Date();
     const timeStr = formatDateTime(now);
     const dateStr = formatDate(now);
+    const finalArrivalTime = arrivalTime || selectedOrder.arrivalTime || timeStr;
 
     updateWorkOrder(selectedOrder.id, {
       status: 'completed',
       statusLabel: '已完成',
       completedDate: dateStr,
+      arrivalTime: finalArrivalTime,
       handlingNotes: handlingNotes,
       photos: orderPhotos,
     });
 
-    const progressDescription = handlingNotes || '工单已处理完成';
+    const progressDescription = '到场时间：' + finalArrivalTime + '。' + (handlingNotes || '工单已处理完成');
     addWorkOrderProgress(selectedOrder.id, {
       status: '完成工单',
       description: progressDescription,
@@ -197,6 +201,7 @@ export default function WorkOrders() {
     setShowCompleteModal(false);
     setHandlingNotes('');
     setOrderPhotos([]);
+    setArrivalTime('');
     showSuccessMessage('工单已完成！');
   };
 
@@ -253,12 +258,17 @@ export default function WorkOrders() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   到场时间
                 </label>
-                <div className="p-3 bg-gray-50 rounded-xl flex items-center gap-2">
-                  <MapPinned className="w-4 h-4 text-green-600" />
-                  <span className="text-sm text-gray-700">
-                    {selectedOrder.arrivalTime || '未记录'}
-                  </span>
+                <div className="relative">
+                  <MapPinned className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-green-600" />
+                  <input
+                    type="text"
+                    value={arrivalTime}
+                    onChange={(e) => setArrivalTime(e.target.value)}
+                    placeholder="请输入到场时间，如：2026-06-07 10:30:00"
+                    className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
                 </div>
+                <p className="text-xs text-gray-500 mt-1">可以手动修改到场时间，格式：YYYY-MM-DD HH:MM:SS</p>
               </div>
 
               <div>

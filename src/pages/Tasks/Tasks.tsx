@@ -1,5 +1,5 @@
 import { useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import {
   Plus,
   Filter,
@@ -23,6 +23,7 @@ import {
   Play,
   Image as ImageIcon,
   Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 import type { Task } from '@/types';
@@ -52,6 +53,7 @@ const progressSteps = [
 ];
 
 export default function Tasks() {
+  const navigate = useNavigate();
   const { tasks, households, inspections, hazards, updateTask, batchUpdateTasks, addTaskTimelineItem, currentUser } = useStore();
   const [activeTab, setActiveTab] = useState('all');
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
@@ -1037,30 +1039,58 @@ export default function Tasks() {
                   </h4>
                   <div className="space-y-2">
                     {getTaskHazards(currentTaskForDetail).map((hazard) => (
-                      <div key={hazard.id} className="p-3 bg-white rounded-lg border border-orange-100">
+                      <div 
+                        key={hazard.id} 
+                        className="p-3 bg-white rounded-lg border border-orange-100 cursor-pointer hover:border-orange-300 hover:shadow-sm transition-all"
+                        onClick={() => navigate('/hazards')}
+                      >
                         <div className="flex items-center justify-between">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            hazard.level === 'critical' ? 'bg-red-100 text-red-700' :
-                            hazard.level === 'major' ? 'bg-orange-100 text-orange-700' :
-                            'bg-yellow-100 text-yellow-700'
-                          }`}>
-                            {hazard.levelLabel}
-                          </span>
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
-                            hazard.status === 'closed' ? 'bg-green-100 text-green-700' :
-                            hazard.status === 'rectifying' ? 'bg-blue-100 text-blue-700' :
-                            'bg-gray-100 text-gray-700'
-                          }`}>
-                            {hazard.statusLabel}
+                          <div className="flex items-center gap-2">
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              hazard.level === 'critical' ? 'bg-red-100 text-red-700' :
+                              hazard.level === 'major' ? 'bg-orange-100 text-orange-700' :
+                              'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {hazard.levelLabel}
+                            </span>
+                            <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                              hazard.status === 'closed' ? 'bg-green-100 text-green-700' :
+                              hazard.status === 'rectifying' ? 'bg-blue-100 text-blue-700' :
+                              hazard.status === 'rechecking' ? 'bg-yellow-100 text-yellow-700' :
+                              'bg-gray-100 text-gray-700'
+                            }`}>
+                              {hazard.statusLabel}
+                            </span>
+                          </div>
+                          <span className="text-xs text-blue-600 flex items-center gap-1">
+                            查看详情
+                            <ExternalLink className="w-3 h-3" />
                           </span>
                         </div>
                         <p className="text-sm font-medium text-gray-900 mt-2">{hazard.type}</p>
                         <p className="text-xs text-gray-500 mt-1">{hazard.description}</p>
-                        {hazard.status === 'closed' && hazard.recheckResult && (
-                          <p className="text-xs text-green-600 mt-2 flex items-center gap-1">
-                            <CheckCircle2 className="w-3 h-3" />
-                            整改结果：{hazard.recheckResult}
-                          </p>
+                        {hazard.assigneeName && (
+                          <p className="text-xs text-gray-500 mt-1">整改人：{hazard.assigneeName}</p>
+                        )}
+                        {hazard.deadline && (
+                          <p className="text-xs text-gray-500 mt-1">整改期限：{hazard.deadline}</p>
+                        )}
+                        {hazard.status === 'closed' && (
+                          <div className="mt-2 pt-2 border-t border-gray-100">
+                            <p className="text-xs text-green-600 flex items-center gap-1">
+                              <CheckCircle2 className="w-3 h-3" />
+                              已销号，复查结果：{hazard.recheckResult || '合格'}
+                            </p>
+                            {hazard.recheckNotes && (
+                              <p className="text-xs text-gray-500 mt-1">复查说明：{hazard.recheckNotes}</p>
+                            )}
+                            {hazard.closedDate && (
+                              <p className="text-xs text-gray-400 mt-1">销号日期：{hazard.closedDate}</p>
+                            )}
+                          </div>
+                        )}
+                        {hazard.status === 'rectifying' && hazard.rectificationNotes && (
+                          <p className="text-xs text-blue-600 mt-2">整改进度：{hazard.rectificationNotes}</p>
                         )}
                       </div>
                     ))}

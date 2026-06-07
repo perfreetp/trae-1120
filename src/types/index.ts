@@ -94,6 +94,16 @@ export interface InspectionRecord {
   userSignature?: string;
 }
 
+export interface HazardTimelineItem {
+  id: string;
+  status: 'created' | 'assigned' | 'rectifying' | 'rechecking' | 'closed';
+  statusLabel: string;
+  description: string;
+  operatorName: string;
+  timestamp: string;
+  photos?: string[];
+}
+
 export interface Hazard {
   id: string;
   inspectionRecordId?: string;
@@ -112,10 +122,15 @@ export interface Hazard {
   assigneeName?: string;
   deadline?: string;
   rectificationPlan?: string;
+  rectificationNotes?: string;
+  rectificationPhotos?: string[];
   recheckDate?: string;
   recheckResult?: string;
+  recheckPhotos?: string[];
+  recheckNotes?: string;
   createDate: string;
   closedDate?: string;
+  timeline?: HazardTimelineItem[];
 }
 
 export interface WorkOrder {

@@ -1,3 +1,4 @@
+import { useNavigate } from 'react-router-dom';
 import {
   PieChart,
   Pie,
@@ -22,13 +23,82 @@ import {
   TrendingUp,
   Award,
   Flame,
+  Bell,
+  XCircle,
+  Wrench,
+  ChevronRight,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
 
 const COLORS = ['#10b981', '#f97316', '#ef4444'];
 
 export default function Dashboard() {
-  const { statistics } = useStore();
+  const navigate = useNavigate();
+  const { statistics, hazards, workOrders } = useStore();
+
+  const getDaysUntilDeadline = (deadline?: string) => {
+    if (!deadline) return null;
+    const now = new Date();
+    const dead = new Date(deadline);
+    const diff = Math.ceil((dead.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    return diff;
+  };
+
+  const isOverdue = (deadline?: string) => {
+    const days = getDaysUntilDeadline(deadline);
+    return days !== null && days < 0;
+  };
+
+  const isUrgent = (deadline?: string) => {
+    const days = getDaysUntilDeadline(deadline);
+    return days !== null && days >= 0 && days <= 3;
+  };
+
+  const getOverdueHazards = () => {
+    return hazards.filter((h) => h.status !== 'closed' && isOverdue(h.deadline));
+  };
+
+  const getUrgentHazards = () => {
+    return hazards.filter((h) => h.status !== 'closed' && isUrgent(h.deadline) && !isOverdue(h.deadline));
+  };
+
+  const getLongRunningWorkOrders = () => {
+    return workOrders.filter((wo) => wo.status === 'processing');
+  };
+
+  const overdueHazards = getOverdueHazards();
+  const urgentHazards = getUrgentHazards();
+  const longRunningOrders = getLongRunningWorkOrders();
+
+  const allReminders = [
+    ...overdueHazards.map((h) => ({
+      id: h.id,
+      type: 'hazard-overdue' as const,
+      title: h.type,
+      subtitle: h.address,
+      message: '已超期 ' + Math.abs(getDaysUntilDeadline(h.deadline)!) + ' 天',
+      level: h.level,
+      page: '/hazards',
+    })),
+    ...urgentHazards.map((h) => ({
+      id: h.id,
+      type: 'hazard-urgent' as const,
+      title: h.type,
+      subtitle: h.address,
+      message: getDaysUntilDeadline(h.deadline) === 0 ? '今天到期' : '还剩 ' + getDaysUntilDeadline(h.deadline) + ' 天',
+      level: h.level,
+      page: '/hazards',
+    })),
+    ...longRunningOrders.slice(0, 3).map((wo) => ({
+      id: wo.id,
+      type: 'order-running' as const,
+      title: wo.title,
+      subtitle: wo.orderNo,
+      message: '处理中，请尽快完成',
+      level: 'normal' as const,
+      page: '/workorders',
+    })),
+  ];
 
   const hazardData = [
     { name: '一般隐患', value: statistics.hazardLevelDistribution.general, color: '#10b981' },
@@ -106,6 +176,64 @@ export default function Dashboard() {
           </div>
         ))}
       </div>
+
+      {allReminders.length > 0 && (
+        <div className="bg-gradient-to-r from-orange-50 to-red-50 rounded-2xl border border-orange-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 flex items-center justify-center">
+                <Bell className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">待办提醒</h3>
+                <p className="text-sm text-gray-500">共 {allReminders.length} 项需要关注</p>
+              </div>
+            </div>
+            <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
+              {allReminders.length} 项待办
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {allReminders.slice(0, 6).map((reminder) => (
+              <div
+                key={reminder.id + '-' + reminder.type}
+                className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => navigate(reminder.page)}
+              >
+                <div className="flex items-start gap-3">
+                  <div className={'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ' + (
+                    reminder.type === 'hazard-overdue' ? 'bg-red-100' :
+                    reminder.type === 'hazard-urgent' ? 'bg-orange-100' :
+                    'bg-blue-100'
+                  )}>
+                    {reminder.type === 'hazard-overdue' ? (
+                      <XCircle className="w-4 h-4 text-red-600" />
+                    ) : reminder.type === 'hazard-urgent' ? (
+                      <Clock className="w-4 h-4 text-orange-600" />
+                    ) : (
+                      <Wrench className="w-4 h-4 text-blue-600" />
+                    )}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 truncate">{reminder.title}</p>
+                      <ChevronRight className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                    </div>
+                    <p className="text-xs text-gray-500 mt-0.5 truncate">{reminder.subtitle}</p>
+                    <p className={'text-xs font-medium mt-1 ' + (
+                      reminder.type === 'hazard-overdue' ? 'text-red-600' :
+                      reminder.type === 'hazard-urgent' ? 'text-orange-600' :
+                      'text-blue-600'
+                    )}>
+                      {reminder.message}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">

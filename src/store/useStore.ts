@@ -8,6 +8,7 @@ import type {
   TaskTimelineItem,
   InspectionRecord,
   Hazard,
+  HazardTimelineItem,
   WorkOrder,
   WorkOrderProgress,
   Statistics,
@@ -48,6 +49,7 @@ interface AppState {
   addInspectionRecord: (record: InspectionRecord) => void;
   addHazard: (hazard: Hazard) => void;
   updateHazard: (id: string, data: Partial<Hazard>) => void;
+  addHazardTimelineItem: (hazardId: string, item: Omit<HazardTimelineItem, 'id'>) => void;
   updateWorkOrder: (id: string, data: Partial<WorkOrder>) => void;
   addWorkOrderProgress: (workOrderId: string, progress: Omit<WorkOrderProgress, 'id' | 'workOrderId'>) => void;
   toggleSidebar: () => void;
@@ -129,6 +131,18 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({
       hazards: state.hazards.map((hazard) =>
         hazard.id === id ? { ...hazard, ...data } : hazard
+      ),
+    })),
+
+  addHazardTimelineItem: (hazardId, item) =>
+    set((state) => ({
+      hazards: state.hazards.map((hazard) =>
+        hazard.id === hazardId
+          ? {
+              ...hazard,
+              timeline: [...(hazard.timeline || []), { ...item, id: 'htl_' + Date.now() }],
+            }
+          : hazard
       ),
     })),
 
