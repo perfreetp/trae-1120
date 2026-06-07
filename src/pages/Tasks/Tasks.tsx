@@ -1042,7 +1042,7 @@ export default function Tasks() {
                       <div 
                         key={hazard.id} 
                         className="p-3 bg-white rounded-lg border border-orange-100 cursor-pointer hover:border-orange-300 hover:shadow-sm transition-all"
-                        onClick={() => navigate('/hazards')}
+                        onClick={() => navigate('/hazards', { state: { selectedHazardId: hazard.id } })}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">

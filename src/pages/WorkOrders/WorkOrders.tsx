@@ -1,4 +1,5 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import {
   Wrench,
   AlertTriangle,
@@ -32,11 +33,25 @@ const typeTabs = [
 ];
 
 export default function WorkOrders() {
+  const location = useLocation();
   const { workOrders, updateWorkOrder, addWorkOrderProgress, currentUser } = useStore();
   const [activeTypeTab, setActiveTypeTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState('');
+
+  useEffect(() => {
+    const state = location.state as { selectedOrderId?: string } | null;
+    if (state?.selectedOrderId) {
+      setSelectedOrderId(state.selectedOrderId);
+      window.setTimeout(() => {
+        const element = document.getElementById('order-' + state.selectedOrderId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [location.state]);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
   const [handlingNotes, setHandlingNotes] = useState('');
@@ -263,7 +278,12 @@ export default function WorkOrders() {
                   <input
                     type="text"
                     value={arrivalTime}
-                    onChange={(e) => setArrivalTime(e.target.value)}
+                    onChange={(e) => {
+                      setArrivalTime(e.target.value);
+                      if (selectedOrder) {
+                        updateWorkOrder(selectedOrder.id, { arrivalTime: e.target.value });
+                      }
+                    }}
                     placeholder="请输入到场时间，如：2026-06-07 10:30:00"
                     className="w-full pl-10 pr-4 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
@@ -463,11 +483,12 @@ export default function WorkOrders() {
               const TypeIcon = getTypeIcon(order.type);
               const isSelected = selectedOrder?.id === order.id;
               const rowClass = isSelected
-                ? 'p-4 cursor-pointer transition-colors bg-blue-50'
+                ? 'p-4 cursor-pointer transition-colors bg-blue-50 ring-2 ring-blue-200'
                 : 'p-4 cursor-pointer transition-colors hover:bg-gray-50';
               return (
                 <div
                   key={order.id}
+                  id={'order-' + order.id}
                   onClick={function() { setSelectedOrderId(order.id); }}
                   className={rowClass}
                 >

@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useRef, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   AlertTriangle,
   Filter,
@@ -43,11 +43,25 @@ const levelTabs = [
 
 export default function Hazards() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { hazards, updateHazard, addHazardTimelineItem, tasks, inspections, currentUser } = useStore();
   const [activeStatusTab, setActiveStatusTab] = useState('all');
   const [activeLevelTab, setActiveLevelTab] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedHazardId, setSelectedHazardId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const state = location.state as { selectedHazardId?: string } | null;
+    if (state?.selectedHazardId) {
+      setSelectedHazardId(state.selectedHazardId);
+      window.setTimeout(() => {
+        const element = document.getElementById('hazard-' + state.selectedHazardId);
+        if (element) {
+          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  }, [location.state]);
   const [showAssignModal, setShowAssignModal] = useState(false);
   const [showRectifyModal, setShowRectifyModal] = useState(false);
   const [showRecheckModal, setShowRecheckModal] = useState(false);
@@ -55,8 +69,10 @@ export default function Hazards() {
   const [showSuccess, setShowSuccess] = useState('');
 
   const [assignForm, setAssignForm] = useState({ assigneeName: '', deadline: '', rectificationPlan: '' });
-  const [rectifyForm, setRectifyForm] = useState({ rectificationNotes: '', photos: [] as string[] });
-  const [recheckForm, setRecheckForm] = useState({ recheckResult: '合格', recheckNotes: '', photos: [] as string[] });
+  const [rectifyForm, setRectifyForm] = useState({ rectificationNotes: '' });
+  const [rectifyPhotos, setRectifyPhotos] = useState<string[]>([]);
+  const [recheckForm, setRecheckForm] = useState({ recheckResult: '合格', recheckNotes: '' });
+  const [recheckPhotos, setRecheckPhotos] = useState<string[]>([]);
 
   const assignFileRef = useRef<HTMLInputElement>(null);
   const rectifyFileRef = useRef<HTMLInputElement>(null);
@@ -155,7 +171,7 @@ export default function Hazards() {
     return y + '-' + m + '-' + d;
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setPhotos: (p: string[]) => void, currentPhotos: string[]) => {
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, setPhotos: React.Dispatch<React.SetStateAction<string[]>>) => {
     const files = e.target.files;
     if (!files) return;
     
@@ -164,15 +180,15 @@ export default function Hazards() {
       reader.onload = (event) => {
         const result = event.target?.result as string;
         if (result) {
-          setPhotos([...currentPhotos, result]);
+          setPhotos((prev) => [...prev, result]);
         }
       };
       reader.readAsDataURL(file);
     });
   };
 
-  const handleRemovePhoto = (index: number, setPhotos: (p: string[]) => void, currentPhotos: string[]) => {
-    setPhotos(currentPhotos.filter((_, i) => i !== index));
+  const handleRemovePhoto = (index: number, setPhotos: React.Dispatch<React.SetStateAction<string[]>>) => {
+    setPhotos((prev) => prev.filter((_, i) => i !== index));
   };
 
   const openAssignModal = (hazard: Hazard) => {
@@ -214,8 +230,8 @@ export default function Hazards() {
     setSelectedHazardId(hazard.id);
     setRectifyForm({
       rectificationNotes: hazard.rectificationNotes || '',
-      photos: hazard.rectificationPhotos || [],
     });
+    setRectifyPhotos(hazard.rectificationPhotos || []);
     setShowRectifyModal(true);
   };
 
@@ -228,7 +244,7 @@ export default function Hazards() {
       status: 'rechecking',
       statusLabel: '待复查',
       rectificationNotes: rectifyForm.rectificationNotes,
-      rectificationPhotos: rectifyForm.photos,
+      rectificationPhotos: rectifyPhotos,
     });
 
     addHazardTimelineItem(selectedHazard.id, {
@@ -237,10 +253,11 @@ export default function Hazards() {
       description: '整改已完成，申请复查。整改说明：' + (rectifyForm.rectificationNotes || '无'),
       operatorName: currentUser.name,
       timestamp: timeStr,
-      photos: rectifyForm.photos.length > 0 ? rectifyForm.photos : undefined,
+      photos: rectifyPhotos.length > 0 ? rectifyPhotos : undefined,
     });
 
     setShowRectifyModal(false);
+    setRectifyPhotos([]);
     showSuccessMessage('整改已提交，等待复查！');
   };
 
@@ -249,8 +266,8 @@ export default function Hazards() {
     setRecheckForm({
       recheckResult: '合格',
       recheckNotes: hazard.recheckNotes || '',
-      photos: hazard.recheckPhotos || [],
     });
+    setRecheckPhotos(hazard.recheckPhotos || []);
     setShowRecheckModal(true);
   };
 
@@ -268,7 +285,7 @@ export default function Hazards() {
       recheckDate: dateStr,
       recheckResult: recheckForm.recheckResult,
       recheckNotes: recheckForm.recheckNotes,
-      recheckPhotos: recheckForm.photos,
+      recheckPhotos: recheckPhotos,
       closedDate: isClosed ? dateStr : undefined,
     });
 
@@ -278,10 +295,11 @@ export default function Hazards() {
       description: '复查' + recheckForm.recheckResult + '。复查说明：' + (recheckForm.recheckNotes || '无'),
       operatorName: currentUser.name,
       timestamp: timeStr,
-      photos: recheckForm.photos.length > 0 ? recheckForm.photos : undefined,
+      photos: recheckPhotos.length > 0 ? recheckPhotos : undefined,
     });
 
     setShowRecheckModal(false);
+    setRecheckPhotos([]);
     showSuccessMessage(isClosed ? '隐患已销号！' : '已退回整改！');
   };
 
@@ -425,7 +443,8 @@ export default function Hazards() {
             return (
               <div
                 key={hazard.id}
-                className={'p-4 hover:bg-gray-50 transition-colors cursor-pointer ' + (selectedHazardId === hazard.id ? 'bg-blue-50' : '')}
+                id={'hazard-' + hazard.id}
+                className={'p-4 hover:bg-gray-50 transition-colors cursor-pointer ' + (selectedHazardId === hazard.id ? 'bg-blue-50 ring-2 ring-blue-200' : '')}
                 onClick={() => setSelectedHazardId(hazard.id)}
               >
                 <div className="flex items-start gap-4">
@@ -563,15 +582,35 @@ export default function Hazards() {
                 <div>
                   <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Camera className="w-4 h-4 text-purple-500" />
-                    隐患现场照片 ({selectedHazard.photos.length})
+                    整改前照片 ({selectedHazard.photos.length})
                   </h4>
                   <div className="grid grid-cols-4 gap-3">
                     {selectedHazard.photos.map((photo, index) => (
                       <img
                         key={index}
                         src={photo}
-                        alt={'隐患照片 ' + (index + 1)}
+                        alt={'整改前照片 ' + (index + 1)}
                         className="w-full h-24 object-cover rounded-lg border border-gray-200 cursor-pointer hover:opacity-90"
+                        onClick={() => setPreviewPhoto(photo)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {selectedHazard.rectificationPhotos && selectedHazard.rectificationPhotos.length > 0 && (
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Camera className="w-4 h-4 text-green-500" />
+                    整改后照片 ({selectedHazard.rectificationPhotos.length})
+                  </h4>
+                  <div className="grid grid-cols-4 gap-3">
+                    {selectedHazard.rectificationPhotos.map((photo, index) => (
+                      <img
+                        key={index}
+                        src={photo}
+                        alt={'整改后照片 ' + (index + 1)}
+                        className="w-full h-24 object-cover rounded-lg border-2 border-green-200 cursor-pointer hover:opacity-90"
                         onClick={() => setPreviewPhoto(photo)}
                       />
                     ))}
@@ -680,14 +719,27 @@ export default function Hazards() {
                   <div className="space-y-4">
                     {selectedHazard.timeline.map((item, index) => {
                       const isLast = index === selectedHazard.timeline!.length - 1;
+                      const isRectifying = item.status === 'rectifying';
+                      const isRechecking = item.status === 'rechecking';
+                      const isClosed = item.status === 'closed';
                       return (
                         <div key={item.id} className="flex gap-3">
                           <div className="flex flex-col items-center">
-                            <div className={'w-3 h-3 rounded-full ' + (isLast ? 'bg-blue-500' : 'bg-green-500')} />
+                            <div className={'w-3 h-3 rounded-full ' + (
+                              isClosed ? 'bg-green-500' :
+                              isRechecking ? 'bg-purple-500' :
+                              isRectifying ? 'bg-yellow-500' :
+                              isLast ? 'bg-blue-500' : 'bg-gray-400'
+                            )} />
                             {!isLast && <div className="w-0.5 h-full bg-gray-200 mt-1" />}
                           </div>
                           <div className="flex-1 pb-4">
-                            <p className="text-sm font-medium text-gray-900">{item.statusLabel}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="text-sm font-medium text-gray-900">{item.statusLabel}</p>
+                              {isRectifying && <span className="px-1.5 py-0.5 bg-yellow-100 text-yellow-700 text-xs rounded">整改后</span>}
+                              {isRechecking && <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">复查</span>}
+                              {isClosed && <span className="px-1.5 py-0.5 bg-green-100 text-green-700 text-xs rounded">销号</span>}
+                            </div>
                             <p className="text-sm text-gray-500 mt-0.5">{item.description}</p>
                             <p className="text-xs text-gray-400 mt-1">
                               {item.operatorName} · {item.timestamp}
@@ -695,14 +747,24 @@ export default function Hazards() {
                             {item.photos && item.photos.length > 0 && (
                               <div className="flex gap-2 mt-2">
                                 {item.photos.slice(0, 3).map((photo, pIndex) => (
-                                  <img
-                                    key={pIndex}
-                                    src={photo}
-                                    alt={'时间线照片 ' + (pIndex + 1)}
-                                    className="w-12 h-12 object-cover rounded border border-gray-200 cursor-pointer hover:opacity-90"
-                                    onClick={() => setPreviewPhoto(photo)}
-                                  />
+                                  <div key={pIndex} className="relative">
+                                    <img
+                                      src={photo}
+                                      alt={'时间线照片 ' + (pIndex + 1)}
+                                      className={'w-12 h-12 object-cover rounded cursor-pointer hover:opacity-90 ' + (
+                                        isRectifying ? 'border-2 border-green-200' :
+                                        isRechecking ? 'border-2 border-purple-200' :
+                                        'border border-gray-200'
+                                      )}
+                                      onClick={() => setPreviewPhoto(photo)}
+                                    />
+                                  </div>
                                 ))}
+                                {item.photos.length > 3 && (
+                                  <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center text-xs text-gray-500">
+                                    +{item.photos.length - 3}
+                                  </div>
+                                )}
                               </div>
                             )}
                           </div>
@@ -882,9 +944,26 @@ export default function Hazards() {
                 />
               </div>
 
+              {selectedHazard.photos.length > 0 && (
+                <div>
+                  <label className="text-sm font-medium text-gray-700 mb-3 block">整改前照片 ({selectedHazard.photos.length})</label>
+                  <div className="grid grid-cols-4 gap-2 mb-2">
+                    {selectedHazard.photos.map((photo, index) => (
+                      <img
+                        key={index}
+                        src={photo}
+                        alt={'整改前照片 ' + (index + 1)}
+                        className="w-full h-16 object-cover rounded-lg border border-gray-200 cursor-pointer opacity-80"
+                        onClick={() => setPreviewPhoto(photo)}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-gray-700">整改后照片 ({rectifyForm.photos.length})</label>
+                  <label className="text-sm font-medium text-gray-700">整改后照片 ({rectifyPhotos.length})</label>
                   <button
                     onClick={() => rectifyFileRef.current?.click()}
                     className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-1"
@@ -898,20 +977,20 @@ export default function Hazards() {
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => handlePhotoUpload(e, (p) => setRectifyForm({ ...rectifyForm, photos: p }), rectifyForm.photos)}
+                  onChange={(e) => handlePhotoUpload(e, setRectifyPhotos)}
                   className="hidden"
                 />
                 <div className="grid grid-cols-4 gap-3">
-                  {rectifyForm.photos.map((photo, index) => (
+                  {rectifyPhotos.map((photo, index) => (
                     <div key={index} className="relative group">
                       <img
                         src={photo}
-                        alt={'整改照片 ' + (index + 1)}
-                        className="w-full h-20 object-cover rounded-lg border border-gray-200 cursor-pointer"
+                        alt={'整改后照片 ' + (index + 1)}
+                        className="w-full h-20 object-cover rounded-lg border-2 border-green-200 cursor-pointer"
                         onClick={() => setPreviewPhoto(photo)}
                       />
                       <button
-                        onClick={() => handleRemovePhoto(index, (p) => setRectifyForm({ ...rectifyForm, photos: p }), rectifyForm.photos)}
+                        onClick={() => handleRemovePhoto(index, setRectifyPhotos)}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
                         <X className="w-3 h-3" />
@@ -982,7 +1061,7 @@ export default function Hazards() {
 
               <div>
                 <div className="flex items-center justify-between mb-3">
-                  <label className="text-sm font-medium text-gray-700">复查照片 ({recheckForm.photos.length})</label>
+                  <label className="text-sm font-medium text-gray-700">复查照片 ({recheckPhotos.length})</label>
                   <button
                     onClick={() => recheckFileRef.current?.click()}
                     className="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-1"
@@ -996,11 +1075,11 @@ export default function Hazards() {
                   type="file"
                   accept="image/*"
                   multiple
-                  onChange={(e) => handlePhotoUpload(e, (p) => setRecheckForm({ ...recheckForm, photos: p }), recheckForm.photos)}
+                  onChange={(e) => handlePhotoUpload(e, setRecheckPhotos)}
                   className="hidden"
                 />
                 <div className="grid grid-cols-4 gap-3">
-                  {recheckForm.photos.map((photo, index) => (
+                  {recheckPhotos.map((photo, index) => (
                     <div key={index} className="relative group">
                       <img
                         src={photo}
@@ -1009,7 +1088,7 @@ export default function Hazards() {
                         onClick={() => setPreviewPhoto(photo)}
                       />
                       <button
-                        onClick={() => handleRemovePhoto(index, (p) => setRecheckForm({ ...recheckForm, photos: p }), recheckForm.photos)}
+                        onClick={() => handleRemovePhoto(index, setRecheckPhotos)}
                         className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
                       >
                         <X className="w-3 h-3" />

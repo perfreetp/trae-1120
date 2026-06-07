@@ -63,7 +63,19 @@ export default function Dashboard() {
   };
 
   const getLongRunningWorkOrders = () => {
-    return workOrders.filter((wo) => wo.status === 'processing');
+    const thresholdHours = 24;
+    const now = new Date();
+    return workOrders.filter((wo) => {
+      if (wo.status !== 'processing') return false;
+      const createTime = new Date(wo.createDate);
+      const diffHours = (now.getTime() - createTime.getTime()) / (1000 * 60 * 60);
+      return diffHours > thresholdHours;
+    }).map((wo) => {
+      const createTime = new Date(wo.createDate);
+      const now = new Date();
+      const diffHours = Math.floor((now.getTime() - createTime.getTime()) / (1000 * 60 * 60));
+      return { ...wo, processingHours: diffHours };
+    });
   };
 
   const overdueHazards = getOverdueHazards();
@@ -79,6 +91,7 @@ export default function Dashboard() {
       message: '已超期 ' + Math.abs(getDaysUntilDeadline(h.deadline)!) + ' 天',
       level: h.level,
       page: '/hazards',
+      itemId: h.id,
     })),
     ...urgentHazards.map((h) => ({
       id: h.id,
@@ -88,15 +101,17 @@ export default function Dashboard() {
       message: getDaysUntilDeadline(h.deadline) === 0 ? '今天到期' : '还剩 ' + getDaysUntilDeadline(h.deadline) + ' 天',
       level: h.level,
       page: '/hazards',
+      itemId: h.id,
     })),
     ...longRunningOrders.slice(0, 3).map((wo) => ({
       id: wo.id,
       type: 'order-running' as const,
       title: wo.title,
       subtitle: wo.orderNo,
-      message: '处理中，请尽快完成',
+      message: '已处理 ' + (wo as any).processingHours + ' 小时，超过24小时未完成',
       level: 'normal' as const,
       page: '/workorders',
+      itemId: wo.id,
     })),
   ];
 
@@ -198,7 +213,7 @@ export default function Dashboard() {
               <div
                 key={reminder.id + '-' + reminder.type}
                 className="bg-white rounded-xl p-4 border border-gray-100 cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => navigate(reminder.page)}
+                onClick={() => navigate(reminder.page, { state: reminder.type.startsWith('hazard') ? { selectedHazardId: reminder.itemId } : { selectedOrderId: reminder.itemId } })}
               >
                 <div className="flex items-start gap-3">
                   <div className={'w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ' + (
