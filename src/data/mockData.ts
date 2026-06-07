@@ -45,12 +45,45 @@ export const mockHouseholds: Household[] = [
 ];
 
 export const mockTasks: Task[] = [
-  { id: 't1', taskNo: 'RW202606001', type: 'routine', typeLabel: '例行安检', householdId: 'h1', householdName: '张三', address: '阳光花园1号楼101', inspectorId: '3', inspectorName: '王安检员', status: 'pending', statusLabel: '待执行', scheduledDate: '2026-06-08', priority: 'medium', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [] },
-  { id: 't2', taskNo: 'RW202606002', type: 'routine', typeLabel: '例行安检', householdId: 'h2', householdName: '李四', address: '阳光花园1号楼102', inspectorId: '3', inspectorName: '王安检员', status: 'in_progress', statusLabel: '进行中', scheduledDate: '2026-06-07', priority: 'high', checkInStatus: 'checked_in', checkInStatusLabel: '已签到', checkInTime: '2026-06-07 09:30:00', photoCount: 2, photos: [] },
-  { id: 't3', taskNo: 'RW202606003', type: 'recheck', typeLabel: '复查', householdId: 'h3', householdName: '王五', address: '阳光花园1号楼201', inspectorId: '4', inspectorName: '赵安检员', status: 'assigned', statusLabel: '已派单', scheduledDate: '2026-06-10', priority: 'high', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [] },
-  { id: 't4', taskNo: 'RW202606004', type: 'special', typeLabel: '专项检查', householdId: 'h4', householdName: '赵六', address: '阳光花园2号楼302', inspectorId: '3', inspectorName: '王安检员', status: 'completed', statusLabel: '已完成', scheduledDate: '2026-06-05', completedDate: '2026-06-05', priority: 'low', checkInStatus: 'checked_in', checkInStatusLabel: '已签到', checkInTime: '2026-06-05 14:20:00', photoCount: 3, photos: [] },
-  { id: 't5', taskNo: 'RW202606005', type: 'routine', typeLabel: '例行安检', householdId: 'h5', householdName: '钱七', address: '阳光花园3号楼501', status: 'overdue', statusLabel: '已逾期', scheduledDate: '2026-06-01', priority: 'medium', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [] },
-  { id: 't6', taskNo: 'RW202606006', type: 'routine', typeLabel: '例行安检', householdId: 'h1', householdName: '张三', address: '阳光花园1号楼101', status: 'pending', statusLabel: '待执行', scheduledDate: '2026-06-12', priority: 'low', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [] },
+  { 
+    id: 't1', taskNo: 'RW202606001', type: 'routine', typeLabel: '例行安检', householdId: 'h1', householdName: '张三', address: '阳光花园1号楼101', inspectorId: '3', inspectorName: '王安检员', status: 'pending', statusLabel: '待执行', scheduledDate: '2026-06-08', priority: 'medium', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [],
+    timeline: [
+      { id: 'tl1', status: 'assigned', statusLabel: '已派单', description: '任务已派单给王安检员', operatorName: '张管理员', timestamp: '2026-06-06 10:00:00' }
+    ]
+  },
+  { 
+    id: 't2', taskNo: 'RW202606002', type: 'routine', typeLabel: '例行安检', householdId: 'h2', householdName: '李四', address: '阳光花园1号楼102', inspectorId: '3', inspectorName: '王安检员', status: 'in_progress', statusLabel: '进行中', scheduledDate: '2026-06-07', priority: 'high', checkInStatus: 'checked_in', checkInStatusLabel: '已签到', checkInTime: '2026-06-07 09:30:00', photoCount: 2, photos: [],
+    timeline: [
+      { id: 'tl2', status: 'assigned', statusLabel: '已派单', description: '任务已派单给王安检员', operatorName: '张管理员', timestamp: '2026-06-06 09:00:00' },
+      { id: 'tl3', status: 'started', statusLabel: '开始执行', description: '安检员开始执行任务', operatorName: '王安检员', timestamp: '2026-06-07 09:15:00' },
+      { id: 'tl4', status: 'checked_in', statusLabel: '已签到', description: '已到达现场完成签到', operatorName: '王安检员', timestamp: '2026-06-07 09:30:00' },
+      { id: 'tl5', status: 'photo_added', statusLabel: '拍照留痕', description: '上传了2张现场照片', operatorName: '王安检员', timestamp: '2026-06-07 09:45:00' }
+    ]
+  },
+  { 
+    id: 't3', taskNo: 'RW202606003', type: 'recheck', typeLabel: '复查', householdId: 'h3', householdName: '王五', address: '阳光花园1号楼201', inspectorId: '4', inspectorName: '赵安检员', status: 'assigned', statusLabel: '已派单', scheduledDate: '2026-06-10', priority: 'high', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: [],
+    timeline: [
+      { id: 'tl6', status: 'assigned', statusLabel: '已派单', description: '任务已派单给赵安检员', operatorName: '张管理员', timestamp: '2026-06-06 14:00:00' }
+    ]
+  },
+  { 
+    id: 't4', taskNo: 'RW202606004', type: 'special', typeLabel: '专项检查', householdId: 'h4', householdName: '赵六', address: '阳光花园2号楼302', inspectorId: '3', inspectorName: '王安检员', status: 'completed', statusLabel: '已完成', scheduledDate: '2026-06-05', completedDate: '2026-06-05', priority: 'low', checkInStatus: 'checked_in', checkInStatusLabel: '已签到', checkInTime: '2026-06-05 14:20:00', photoCount: 3, photos: [],
+    timeline: [
+      { id: 'tl7', status: 'assigned', statusLabel: '已派单', description: '任务已派单给王安检员', operatorName: '张管理员', timestamp: '2026-06-04 10:00:00' },
+      { id: 'tl8', status: 'started', statusLabel: '开始执行', description: '安检员开始执行任务', operatorName: '王安检员', timestamp: '2026-06-05 14:00:00' },
+      { id: 'tl9', status: 'checked_in', statusLabel: '已签到', description: '已到达现场完成签到', operatorName: '王安检员', timestamp: '2026-06-05 14:20:00' },
+      { id: 'tl10', status: 'photo_added', statusLabel: '拍照留痕', description: '上传了3张现场照片', operatorName: '王安检员', timestamp: '2026-06-05 14:35:00' },
+      { id: 'tl11', status: 'inspection_submitted', statusLabel: '提交检查', description: '已提交入户检查记录', operatorName: '王安检员', timestamp: '2026-06-05 14:50:00' },
+      { id: 'tl12', status: 'completed', statusLabel: '已完成', description: '任务已完成', operatorName: '系统', timestamp: '2026-06-05 14:50:00' }
+    ],
+    hazardIds: ['hz4']
+  },
+  { 
+    id: 't5', taskNo: 'RW202606005', type: 'routine', typeLabel: '例行安检', householdId: 'h5', householdName: '钱七', address: '阳光花园3号楼501', status: 'overdue', statusLabel: '已逾期', scheduledDate: '2026-06-01', priority: 'medium', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: []
+  },
+  { 
+    id: 't6', taskNo: 'RW202606006', type: 'routine', typeLabel: '例行安检', householdId: 'h1', householdName: '张三', address: '阳光花园1号楼101', status: 'pending', statusLabel: '待执行', scheduledDate: '2026-06-12', priority: 'low', checkInStatus: 'pending', checkInStatusLabel: '未签到', photoCount: 0, photos: []
+  },
 ];
 
 export const mockInspectionRecords: InspectionRecord[] = [
@@ -103,6 +136,8 @@ export const mockWorkOrders: WorkOrder[] = [
     assigneeId: '3',
     assigneeName: '王安检员',
     createDate: '2026-06-07 09:30:00',
+    arrivalTime: '2026-06-07 10:00:00',
+    photos: [],
     progress: [
       { id: 'p1', workOrderId: 'wo1', status: '已接单', description: '安检员已接单，正在赶往现场', operatorName: '系统', timestamp: '2026-06-07 09:35:00' },
       { id: 'p2', workOrderId: 'wo1', status: '到达现场', description: '已到达用户家中，开始检测泄漏点', operatorName: '王安检员', timestamp: '2026-06-07 10:00:00' },
@@ -124,6 +159,7 @@ export const mockWorkOrders: WorkOrder[] = [
     priority: 'normal',
     priorityLabel: '普通',
     createDate: '2026-06-07 08:15:00',
+    photos: [],
     progress: [],
   },
   {
@@ -144,6 +180,7 @@ export const mockWorkOrders: WorkOrder[] = [
     assigneeName: '李街道',
     createDate: '2026-06-05 14:00:00',
     completedDate: '2026-06-06 18:00:00',
+    photos: [],
     progress: [
       { id: 'p4', workOrderId: 'wo3', status: '已通知', description: '已发布停气通知，通知各社区', operatorName: '张管理员', timestamp: '2026-06-05 14:30:00' },
       { id: 'p5', workOrderId: 'wo3', status: '停气完成', description: '已按计划完成停气作业', operatorName: '维修班组', timestamp: '2026-06-06 08:00:00' },

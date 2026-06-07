@@ -5,6 +5,7 @@ import type {
   Building,
   Household,
   Task,
+  TaskTimelineItem,
   InspectionRecord,
   Hazard,
   WorkOrder,
@@ -42,6 +43,8 @@ interface AppState {
   fetchData: () => void;
   updateTask: (id: string, data: Partial<Task>) => void;
   batchUpdateTasks: (ids: string[], data: Partial<Task>) => void;
+  addTaskTimelineItem: (taskId: string, item: Omit<TaskTimelineItem, 'id'>) => void;
+  addHazardToTask: (taskId: string, hazardId: string) => void;
   addInspectionRecord: (record: InspectionRecord) => void;
   addHazard: (hazard: Hazard) => void;
   updateHazard: (id: string, data: Partial<Hazard>) => void;
@@ -85,6 +88,30 @@ export const useStore = create<AppState>((set) => ({
     set((state) => ({
       tasks: state.tasks.map((task) =>
         ids.includes(task.id) ? { ...task, ...data } : task
+      ),
+    })),
+
+  addTaskTimelineItem: (taskId, item) =>
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              timeline: [...(task.timeline || []), { ...item, id: 'tl_' + Date.now() }],
+            }
+          : task
+      ),
+    })),
+
+  addHazardToTask: (taskId, hazardId) =>
+    set((state) => ({
+      tasks: state.tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              hazardIds: [...(task.hazardIds || []), hazardId],
+            }
+          : task
       ),
     })),
 

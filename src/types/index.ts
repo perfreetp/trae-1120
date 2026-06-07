@@ -39,6 +39,15 @@ export interface Household {
   nextInspectionDate?: string;
 }
 
+export interface TaskTimelineItem {
+  id: string;
+  status: 'assigned' | 'started' | 'checked_in' | 'photo_added' | 'inspection_submitted' | 'completed';
+  statusLabel: string;
+  description: string;
+  operatorName: string;
+  timestamp: string;
+}
+
 export interface Task {
   id: string;
   taskNo: string;
@@ -59,6 +68,8 @@ export interface Task {
   checkInTime?: string;
   photoCount?: number;
   photos?: string[];
+  timeline?: TaskTimelineItem[];
+  hazardIds?: string[];
 }
 
 export interface InspectionRecord {
@@ -85,7 +96,8 @@ export interface InspectionRecord {
 
 export interface Hazard {
   id: string;
-  inspectionRecordId: string;
+  inspectionRecordId?: string;
+  taskId?: string;
   householdId: string;
   householdName: string;
   address: string;
@@ -103,6 +115,7 @@ export interface Hazard {
   recheckDate?: string;
   recheckResult?: string;
   createDate: string;
+  closedDate?: string;
 }
 
 export interface WorkOrder {
@@ -123,6 +136,9 @@ export interface WorkOrder {
   assigneeName?: string;
   createDate: string;
   completedDate?: string;
+  arrivalTime?: string;
+  handlingNotes?: string;
+  photos: string[];
   progress: WorkOrderProgress[];
   followUp?: FollowUpRecord;
 }
@@ -134,6 +150,7 @@ export interface WorkOrderProgress {
   description: string;
   operatorName: string;
   timestamp: string;
+  photos?: string[];
 }
 
 export interface FollowUpRecord {

@@ -12,9 +12,11 @@ import {
   Plus,
   X,
   Eye,
+  AlertTriangle,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { useStore } from '@/store/useStore';
-import type { InspectionRecord } from '@/types';
+import type { InspectionRecord, Hazard } from '@/types';
 
 const hoseStatusMap = {
   good: { label: '正常', labelText: '正常' },
@@ -33,14 +35,27 @@ const ventilationMap = {
   poor: { label: '较差', labelText: '较差' },
 };
 
+const abnormalHazardMap: Record<string, { type: string; level: 'general' | 'major' | 'critical'; description: string }> = {
+  'hose-aging': { type: '软管老化', level: 'major', description: '燃气软管老化，存在安全隐患，建议更换' },
+  'hose-damaged': { type: '软管破损', level: 'critical', description: '燃气软管破损，有泄漏风险，需立即更换' },
+  'alarm-faulty': { type: '报警器故障', level: 'major', description: '燃气报警器无法正常报警，需检修或更换' },
+  'alarm-none': { type: '未安装报警器', level: 'general', description: '未安装燃气报警器，存在安全隐患，建议安装' },
+  'ventilation-poor': { type: '通风不良', level: 'general', description: '厨房通风条件较差，建议加装排气扇或改善通风' },
+};
+
 export default function InspectionForm() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { tasks, households, inspections, addInspectionRecord, updateTask, currentUser } = useStore();
+  const { tasks, households, inspections, addInspectionRecord, updateTask, currentUser, addHazard, addHazardToTask, addTaskTimelineItem } = useStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isViewMode, setIsViewMode] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [showHazardModal, setShowHazardModal] = useState(false);
+  const [detectedAbnormals, setDetectedAbnormals] = useState<string[]>([]);
+  const [selectedAbnormals, setSelectedAbnormals] = useState<string[]>([]);
 
   const task = tasks.find((t) => t.id === id);
   const household = households.find((h) => h.id === task?.householdId);
@@ -93,18 +108,39 @@ export default function InspectionForm() {
     }
   }, [existingRecord]);
 
+  const checkAbnormalItems = () => {
+    const abnormals: string[] = [];
+    if (formData.hoseStatus === 'aging') abnormals.push('hose-aging');
+    if (formData.hoseStatus === 'damaged') abnormals.push('hose-damaged');
+    if (formData.alarmStatus === 'faulty') abnormals.push('alarm-faulty');
+    if (formData.alarmStatus === 'none') abnormals.push('alarm-none');
+    if (formData.ventilation === 'poor') abnormals.push('ventilation-poor');
+    return abnormals;
+  };
+
   const handleInputChange = (field: string, value: string) => {
     if (isViewMode) return;
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const handleAddPhoto = () => {
-    if (isViewMode) return;
-    const photoNum = photos.length + 1;
-    const timeStr = new Date().toLocaleString('zh-CN');
-    const svgContent = '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="150" viewBox="0 0 200 150"><rect fill="#e5e7eb" width="200" height="150"/><text x="100" y="80" text-anchor="middle" fill="#6b7280" font-size="14">现场照片 ' + photoNum + '</text><text x="100" y="105" text-anchor="middle" fill="#9ca3af" font-size="10">' + timeStr + '</text></svg>';
-    const newPhoto = 'data:image/svg+xml,' + encodeURIComponent(svgContent);
-    setPhotos([...photos, newPhoto]);
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || isViewMode) return;
+    
+    Array.from(files).forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const result = event.target?.result as string;
+        if (result) {
+          setPhotos((prev) => [...prev, result]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+    
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const handleRemovePhoto = (index: number) => {
@@ -159,15 +195,42 @@ export default function InspectionForm() {
     return canvas.toDataURL('image/png');
   };
 
+  const formatDateTime = (date: Date) => {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
+    const h = String(date.getHours()).padStart(2, '0');
+    const min = String(date.getMinutes()).padStart(2, '0');
+    const s = String(date.getSeconds()).padStart(2, '0');
+    return y + '-' + m + '-' + d + ' ' + h + ':' + min + ':' + s;
+  };
+
   const handleSubmit = () => {
     if (isViewMode) return;
     if (!task || !household || !currentUser) return;
 
     const now = new Date();
-    const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
+
+    const abnormals = checkAbnormalItems();
+    if (abnormals.length > 0) {
+      setDetectedAbnormals(abnormals);
+      setSelectedAbnormals(abnormals);
+      setShowHazardModal(true);
+      return;
+    }
+
+    submitInspection();
+  };
+
+  const submitInspection = () => {
+    if (!task || !household || !currentUser) return;
+
+    const now = new Date();
+    const dateStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
     const record: InspectionRecord = {
-      id: `ir_${Date.now()}`,
+      id: 'ir_' + Date.now(),
       taskId: task.id,
       inspectorId: currentUser.id,
       inspectorName: currentUser.name,
@@ -198,10 +261,57 @@ export default function InspectionForm() {
       photos: photos,
     });
 
+    addTaskTimelineItem(task.id, {
+      status: 'inspection_submitted',
+      statusLabel: '提交检查',
+      description: '已提交入户检查记录',
+      operatorName: currentUser.name,
+      timestamp: formatDateTime(now),
+    });
+
+    addTaskTimelineItem(task.id, {
+      status: 'completed',
+      statusLabel: '已完成',
+      description: '任务已完成',
+      operatorName: '系统',
+      timestamp: formatDateTime(now),
+    });
+
+    selectedAbnormals.forEach((abnormalKey) => {
+      const hazardInfo = abnormalHazardMap[abnormalKey];
+      if (hazardInfo) {
+        const hazardId = 'hz_' + Date.now() + '_' + abnormalKey;
+        const hazard: Hazard = {
+          id: hazardId,
+          inspectionRecordId: record.id,
+          taskId: task.id,
+          householdId: household.id,
+          householdName: household.ownerName,
+          address: task.address,
+          level: hazardInfo.level,
+          levelLabel: hazardInfo.level === 'critical' ? '重大隐患' : hazardInfo.level === 'major' ? '较大隐患' : '一般隐患',
+          type: hazardInfo.type,
+          description: hazardInfo.description,
+          photos: photos.slice(0, 2),
+          status: 'pending',
+          statusLabel: '待整改',
+          createDate: dateStr,
+        };
+        addHazard(hazard);
+        addHazardToTask(task.id, hazardId);
+      }
+    });
+
     setShowSuccess(true);
     setTimeout(() => {
       navigate('/tasks');
     }, 1500);
+  };
+
+  const toggleAbnormal = (key: string) => {
+    setSelectedAbnormals((prev) =>
+      prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]
+    );
   };
 
   return (
@@ -214,6 +324,85 @@ export default function InspectionForm() {
             </div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">检查记录提交成功！</h3>
             <p className="text-gray-500">正在返回任务列表...</p>
+          </div>
+        </div>
+      )}
+
+      {previewPhoto && (
+        <div className="fixed inset-0 bg-black/80 flex items-center justify-center z-[60]" onClick={() => setPreviewPhoto(null)}>
+          <button onClick={() => setPreviewPhoto(null)} className="absolute top-4 right-4 p-2 bg-white/20 rounded-full text-white hover:bg-white/30">
+            <X className="w-6 h-6" />
+          </button>
+          <img src={previewPhoto} alt="预览" className="max-w-[90vw] max-h-[90vh] object-contain rounded-xl" />
+        </div>
+      )}
+
+      {showHazardModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-lg">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">检测到异常项</h3>
+                <p className="text-sm text-gray-500">以下检查项存在异常，建议生成隐患记录</p>
+              </div>
+            </div>
+            
+            <div className="space-y-2 mb-6">
+              {detectedAbnormals.map((key) => {
+                const hazard = abnormalHazardMap[key];
+                return (
+                  <label key={key} className={`flex items-start gap-3 p-3 rounded-xl border-2 cursor-pointer transition-all ${
+                    selectedAbnormals.includes(key)
+                      ? 'border-orange-500 bg-orange-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}>
+                    <input
+                      type="checkbox"
+                      checked={selectedAbnormals.includes(key)}
+                      onChange={() => toggleAbnormal(key)}
+                      className="w-4 h-4 mt-0.5 text-orange-600 rounded focus:ring-orange-500"
+                    />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{hazard.type}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                          hazard.level === 'critical' ? 'bg-red-100 text-red-700' :
+                          hazard.level === 'major' ? 'bg-orange-100 text-orange-700' :
+                          'bg-yellow-100 text-yellow-700'
+                        }`}>
+                          {hazard.level === 'critical' ? '重大' : hazard.level === 'major' ? '较大' : '一般'}
+                        </span>
+                      </div>
+                      <p className="text-sm text-gray-500 mt-1">{hazard.description}</p>
+                    </div>
+                  </label>
+                );
+              })}
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  setShowHazardModal(false);
+                  submitInspection();
+                }}
+                className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-colors"
+              >
+                跳过，直接提交
+              </button>
+              <button
+                onClick={() => {
+                  setShowHazardModal(false);
+                  submitInspection();
+                }}
+                className="flex-1 px-4 py-2.5 bg-orange-600 text-white rounded-xl font-medium hover:bg-orange-700 transition-colors"
+              >
+                生成隐患并提交
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -291,7 +480,7 @@ export default function InspectionForm() {
                     onChange={(e) => handleInputChange('meterReading', e.target.value)}
                     placeholder="请输入表具读数"
                     disabled={isViewMode}
-                    className={`w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${isViewMode ? 'bg-gray-50 text-gray-600' : ''}`}
+                    className={'w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ' + (isViewMode ? 'bg-gray-50 text-gray-600' : '')}
                   />
                   <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-gray-400">
                     m³
@@ -313,11 +502,11 @@ export default function InspectionForm() {
                       key={option.value}
                       onClick={() => handleInputChange('hoseStatus', option.value)}
                       disabled={isViewMode}
-                      className={`px-4 py-3 rounded-xl border-2 font-medium transition-all ${
+                      className={'px-4 py-3 rounded-xl border-2 font-medium transition-all ' + (
                         formData.hoseStatus === option.value
                           ? 'border-blue-500 bg-blue-50 text-blue-600'
                           : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                      } ${isViewMode ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      ) + ' ' + (isViewMode ? 'opacity-70 cursor-not-allowed' : '')}
                     >
                       {option.label}
                     </button>
@@ -333,7 +522,7 @@ export default function InspectionForm() {
                   value={formData.hoseAge}
                   onChange={(e) => handleInputChange('hoseAge', e.target.value)}
                   disabled={isViewMode}
-                  className={`w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${isViewMode ? 'bg-gray-50 text-gray-600' : ''}`}
+                  className={'w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ' + (isViewMode ? 'bg-gray-50 text-gray-600' : '')}
                 >
                   <option value="1">1年以内</option>
                   <option value="2">1-2年</option>
@@ -357,11 +546,11 @@ export default function InspectionForm() {
                       key={option.value}
                       onClick={() => handleInputChange('alarmStatus', option.value)}
                       disabled={isViewMode}
-                      className={`px-4 py-3 rounded-xl border-2 font-medium transition-all ${
+                      className={'px-4 py-3 rounded-xl border-2 font-medium transition-all ' + (
                         formData.alarmStatus === option.value
                           ? 'border-blue-500 bg-blue-50 text-blue-600'
                           : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                      } ${isViewMode ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      ) + ' ' + (isViewMode ? 'opacity-70 cursor-not-allowed' : '')}
                     >
                       {option.label}
                     </button>
@@ -382,11 +571,11 @@ export default function InspectionForm() {
                       key={option.value}
                       onClick={() => handleInputChange('ventilation', option.value)}
                       disabled={isViewMode}
-                      className={`px-4 py-3 rounded-xl border-2 font-medium transition-all ${
+                      className={'px-4 py-3 rounded-xl border-2 font-medium transition-all ' + (
                         formData.ventilation === option.value
                           ? 'border-blue-500 bg-blue-50 text-blue-600'
                           : 'border-gray-200 hover:border-gray-300 text-gray-700'
-                      } ${isViewMode ? 'opacity-70 cursor-not-allowed' : ''}`}
+                      ) + ' ' + (isViewMode ? 'opacity-70 cursor-not-allowed' : '')}
                     >
                       {option.label}
                     </button>
@@ -404,7 +593,7 @@ export default function InspectionForm() {
                   placeholder="请输入其他需要说明的情况..."
                   rows={3}
                   disabled={isViewMode}
-                  className={`w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none ${isViewMode ? 'bg-gray-50 text-gray-600' : ''}`}
+                  className={'w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none ' + (isViewMode ? 'bg-gray-50 text-gray-600' : '')}
                 />
               </div>
             </div>
@@ -415,21 +604,32 @@ export default function InspectionForm() {
               <h3 className="text-lg font-semibold text-gray-900">现场照片</h3>
               {!isViewMode && (
                 <button
-                  onClick={handleAddPhoto}
+                  onClick={() => fileInputRef.current?.click()}
                   className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition-colors flex items-center gap-2"
                 >
                   <Camera className="w-4 h-4" />
-                  添加照片
+                  上传照片
                 </button>
               )}
             </div>
+            
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoUpload}
+              className="hidden"
+            />
+            
             <div className="grid grid-cols-4 gap-4">
               {photos.map((photo, index) => (
                 <div key={index} className="relative group">
                   <img
                     src={photo}
-                    alt={`现场照片 ${index + 1}`}
-                    className="w-full h-24 object-cover rounded-xl border border-gray-200"
+                    alt={'现场照片 ' + (index + 1)}
+                    className="w-full h-24 object-cover rounded-xl border border-gray-200 cursor-pointer hover:opacity-90"
+                    onClick={() => setPreviewPhoto(photo)}
                   />
                   {!isViewMode && (
                     <button
@@ -441,12 +641,25 @@ export default function InspectionForm() {
                   )}
                 </div>
               ))}
-              {photos.length === 0 && (
+              {!isViewMode && (
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="w-full h-24 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center hover:border-blue-400 hover:bg-blue-50 transition-colors"
+                >
+                  <ImageIcon className="w-8 h-8 text-gray-400 mb-1" />
+                  <span className="text-xs text-gray-400">点击上传</span>
+                </button>
+              )}
+              {photos.length === 0 && isViewMode && (
                 <div className="col-span-4 py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
                   <Camera className="w-12 h-12 text-gray-300 mx-auto mb-2" />
-                  <p className="text-sm text-gray-400">
-                    {isViewMode ? '暂无照片' : '点击上方按钮添加现场照片'}
-                  </p>
+                  <p className="text-sm text-gray-400">暂无照片</p>
+                </div>
+              )}
+              {photos.length === 0 && !isViewMode && (
+                <div className="col-span-3 py-12 text-center border-2 border-dashed border-gray-200 rounded-xl">
+                  <Camera className="w-12 h-12 text-gray-300 mx-auto mb-2" />
+                  <p className="text-sm text-gray-400">点击上传按钮或左侧区域添加现场照片</p>
                 </div>
               )}
             </div>
@@ -473,7 +686,7 @@ export default function InspectionForm() {
                 onMouseMove={draw}
                 onMouseUp={stopDrawing}
                 onMouseLeave={stopDrawing}
-                className={`w-full bg-gray-50 ${isViewMode ? 'cursor-default' : 'cursor-crosshair'}`}
+                className={'w-full bg-gray-50 ' + (isViewMode ? 'cursor-default' : 'cursor-crosshair')}
               />
             </div>
             {!signed && !isViewMode && (
@@ -504,13 +717,13 @@ export default function InspectionForm() {
                 <span className="text-sm text-gray-600">检查项目已完成</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${photos.length > 0 ? 'bg-green-500' : 'bg-gray-200'}`}>
+                <div className={'w-5 h-5 rounded-full flex items-center justify-center ' + (photos.length > 0 ? 'bg-green-500' : 'bg-gray-200')}>
                   {photos.length > 0 && <CheckCircle className="w-3 h-3 text-white" />}
                 </div>
                 <span className="text-sm text-gray-600">已添加 {photos.length} 张照片</span>
               </div>
               <div className="flex items-center gap-3">
-                <div className={`w-5 h-5 rounded-full flex items-center justify-center ${signed ? 'bg-green-500' : 'bg-gray-200'}`}>
+                <div className={'w-5 h-5 rounded-full flex items-center justify-center ' + (signed ? 'bg-green-500' : 'bg-gray-200')}>
                   {signed && <CheckCircle className="w-3 h-3 text-white" />}
                 </div>
                 <span className="text-sm text-gray-600">
